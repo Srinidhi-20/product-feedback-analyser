@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReviewLens — Product Feedback Analyser</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">ReviewLens</a>
+    <span class="tagline">Turn customer reviews into product decisions</span>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <p class="eyebrow">PRODUCT RESEARCH TOOL</p>
+      <h1>Understand what your customers are really saying.</h1>
+      <p class="subhead">Paste reviews to group feedback into themes, surface common pain points, and suggest what to improve first.</p>
+    </section>
+
+    <section class="panel input-panel">
+      <div class="section-heading">
+        <div>
+          <h2>1. Add customer reviews</h2>
+          <p>Put each review on a separate line. You can paste reviews from any app.</p>
+        </div>
+        <button type="button" class="secondary small" id="sampleBtn">Load sample reviews</button>
+      </div>
+      <form method="post">
+        <label for="reviews">Customer reviews</label>
+        <textarea id="reviews" name="reviews" rows="9" placeholder="Example: My order arrived 40 minutes late...">{{ raw_text }}</textarea>
+        <div class="form-footer">
+          <span id="reviewCount">0 reviews detected</span>
+          <button class="primary" type="submit">Analyse feedback <span aria-hidden="true">→</span></button>
+        </div>
+      </form>
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      <p class="fine-print">This free demo uses transparent keyword-based rules. Counts and categories are estimates, so review the results before making decisions.</p>
+    </section>
+
+    {% if analysis %}
+    <section class="results">
+      <div class="results-title">
+        <div>
+          <p class="eyebrow">ANALYSIS RESULTS</p>
+          <h2>Feedback overview</h2>
+        </div>
+        <button type="button" class="secondary" onclick="window.print()">Export / Print report</button>
+      </div>
+      <div class="stats">
+        <article class="stat-card"><span>Total reviews</span><strong>{{ analysis.total }}</strong></article>
+        <article class="stat-card"><span>Negative signals</span><strong>{{ analysis.sentiments.get('Negative', 0) }}</strong></article>
+        <article class="stat-card"><span>Positive signals</span><strong>{{ analysis.sentiments.get('Positive', 0) }}</strong></article>
+        <article class="stat-card"><span>Themes found</span><strong>{{ analysis.rows|length }}</strong></article>
+      </div>
+
+      <section class="panel">
+        <h2>2. Top pain points to investigate</h2>
+        {% if analysis.pain_points %}
+          <div class="pain-grid">
+          {% for item in analysis.pain_points %}
+            <article class="pain-card">
+              <div class="pain-top"><span class="priority {{ item.priority|lower }}">{{ item.priority }} priority</span><span class="mention">{{ item.count }} mention{% if item.count != 1 %}s{% endif %}</span></div>
+              <h3>{{ item.theme }}</h3>
+              <p>{{ item.feature }}</p>
+              <div class="metric"><b>Measure success</b><br>{{ item.metric }}</div>
+            </article>
+          {% endfor %}
+          </div>
+        {% else %}
+          <p>No clear pain-point themes were detected. Try adding more detailed reviews.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>3. Theme breakdown and product roadmap</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Theme</th><th>Mentions</th><th>Suggested improvement</th><th>Success metric</th><th>Priority</th></tr></thead>
+            <tbody>
+            {% for item in analysis.rows %}
+              <tr>
+                <td><strong>{{ item.theme }}</strong></td>
+                <td>{{ item.count }}</td>
+                <td>{{ item.feature }}</td>
+                <td>{{ item.metric }}</td>
+                <td><span class="priority {{ item.priority|lower }}">{{ item.priority }}</span></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>4. Review-by-review classification</h2>
+        <div class="review-list">
+          {% for review in analysis.reviews %}
+          <article class="review-item">
+            <p>{{ review.text }}</p>
+            <div class="chips">
+              {% for theme in review.themes %}<span class="chip">{{ theme }}</span>{% endfor %}
+              <span class="chip sentiment">{{ review.sentiment }}</span>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      <p class="fine-print">Method note: a review can match multiple themes. Theme mentions may therefore add up to more than the total number of reviews. Sentiment is a simple keyword estimate, not a trained machine-learning model.</p>
+    </section>
+    {% endif %}
+    <footer><span>ReviewLens · Portfolio project</span><span>Built with Flask · Free demo</span></footer>
+  </main>
+  <script>
+    const textarea = document.getElementById('reviews');
+    const counter = document.getElementById('reviewCount');
+    const sampleBtn = document.getElementById('sampleBtn');
+    const sampleReviews = [
+      "My food arrived 40 minutes late and it was cold.",
+      "Payment failed but money was deducted from my account.",
+      "The app is easy to use and ordering was quick.",
+      "Customer support did not respond when my order was missing.",
+      "The delivery fee is too expensive and appeared at checkout.",
+      "I love the simple reorder option and the food was delicious.",
+      "The app crashed when I tried to pay.",
+      "My order was delivered late again. Tracking was not accurate.",
+      "The refund took too long after the payment problem.",
+      "Good service and fast delivery today."
+    ];
+    function updateCount() {
+      const lines = textarea.value.split('\\n').filter(line => line.trim().length > 0);
+      counter.textContent = `${lines.length} review${lines.length === 1 ? '' : 's'} detected`;
+    }
+    textarea.addEventListener('input', updateCount);
+    sampleBtn.addEventListener('click', () => {
+      textarea.value = sampleReviews.join('\\n');
+      updateCount();
+      textarea.focus();
+    });
+    updateCount();
+  </script>
+</body>
+</html>
