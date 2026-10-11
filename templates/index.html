@@ -3,142 +3,73 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ReviewLens — Product Feedback Analyser</title>
+  <meta name="description" content="Analyze customer reviews, discover sentiment, and turn product feedback into practical next steps.">
+  <title>SignalDesk | Product Feedback Analyser</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/">ReviewLens</a>
-    <span class="tagline">Turn customer reviews into product decisions</span>
-  </header>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="SignalDesk home"><span class="brand-mark">S</span><span>SignalDesk<span class="brand-dot">.</span></span></a>
+      <div class="topbar-right"><span class="status-dot"></span><span>Feedback workspace</span><span class="top-pill">BETA</span></div>
+    </header>
 
-  <main class="container">
-    <section class="hero">
-      <p class="eyebrow">PRODUCT RESEARCH TOOL</p>
-      <h1>Understand what your customers are really saying.</h1>
-      <p class="subhead">Paste reviews to group feedback into themes, surface common pain points, and suggest what to improve first.</p>
-    </section>
-
-    <section class="panel input-panel">
-      <div class="section-heading">
-        <div>
-          <h2>1. Add customer reviews</h2>
-          <p>Put each review on a separate line. You can paste reviews from any app.</p>
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="eyebrow-line"></span> CUSTOMER INSIGHTS, MADE CLEAR</div>
+          <h1>Every review has<br><span>a signal.</span></h1>
+          <p class="hero-subtitle">Turn customer feedback into clear sentiment, recurring themes, and practical next steps.</p>
+          <div class="hero-points"><span><span class="check">✓</span> Sentiment analysis</span><span><span class="check">✓</span> Theme discovery</span><span><span class="check">✓</span> Actionable insights</span></div>
         </div>
-        <button type="button" class="secondary small" id="sampleBtn">Load sample reviews</button>
-      </div>
-      <form method="post">
-        <label for="reviews">Customer reviews</label>
-        <textarea id="reviews" name="reviews" rows="9" placeholder="Example: My order arrived 40 minutes late...">{{ raw_text }}</textarea>
-        <div class="form-footer">
-          <span id="reviewCount">0 reviews detected</span>
-          <button class="primary" type="submit">Analyse feedback <span aria-hidden="true">→</span></button>
+        <div class="hero-art" aria-hidden="true">
+          <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
+          <div class="art-card art-card-main"><div class="art-card-top"><span class="mini-label">SENTIMENT OVERVIEW</span><span class="tiny-bars"><i></i><i></i><i></i></span></div><div class="art-score-row"><div><strong>78<span>%</span></strong><small>Positive signals</small></div><div class="donut"><span>78%</span></div></div><div class="art-meter"><i></i></div><div class="art-legend"><span><i class="legend-green"></i> Positive</span><span><i class="legend-red"></i> Needs attention</span></div></div>
+          <div class="floating-note note-top"><span class="note-icon note-green">↗</span><span><b>Customer love</b><small>Patterns identified</small></span></div>
+          <div class="floating-note note-bottom"><span class="note-icon note-orange">!</span><span><b>Performance</b><small>Potential pain point</small></span></div>
         </div>
-      </form>
-      {% if error %}<p class="error">{{ error }}</p>{% endif %}
-      <p class="fine-print">This free demo uses transparent keyword-based rules. Counts and categories are estimates, so review the results before making decisions.</p>
-    </section>
+      </section>
 
-    {% if analysis %}
-    <section class="results">
-      <div class="results-title">
-        <div>
-          <p class="eyebrow">ANALYSIS RESULTS</p>
-          <h2>Feedback overview</h2>
-        </div>
-        <button type="button" class="secondary" onclick="window.print()">Export / Print report</button>
-      </div>
-      <div class="stats">
-        <article class="stat-card"><span>Total reviews</span><strong>{{ analysis.total }}</strong></article>
-        <article class="stat-card"><span>Negative signals</span><strong>{{ analysis.sentiments.get('Negative', 0) }}</strong></article>
-        <article class="stat-card"><span>Positive signals</span><strong>{{ analysis.sentiments.get('Positive', 0) }}</strong></article>
-        <article class="stat-card"><span>Themes found</span><strong>{{ analysis.rows|length }}</strong></article>
-      </div>
-
-      <section class="panel">
-        <h2>2. Top pain points to investigate</h2>
-        {% if analysis.pain_points %}
-          <div class="pain-grid">
-          {% for item in analysis.pain_points %}
-            <article class="pain-card">
-              <div class="pain-top"><span class="priority {{ item.priority|lower }}">{{ item.priority }} priority</span><span class="mention">{{ item.count }} mention{% if item.count != 1 %}s{% endif %}</span></div>
-              <h3>{{ item.theme }}</h3>
-              <p>{{ item.feature }}</p>
-              <div class="metric"><b>Measure success</b><br>{{ item.metric }}</div>
-            </article>
-          {% endfor %}
+      <section class="workspace-grid">
+        <section class="panel input-panel">
+          <div class="panel-heading"><div><div class="step-label">STEP 01</div><h2>Add your feedback</h2><p>Paste reviews or import a CSV file to get started.</p></div><span class="heading-icon">✳</span></div>
+          <div class="input-tabs" role="tablist" aria-label="Feedback input method"><button class="tab active" id="paste-tab" role="tab" aria-selected="true" type="button">Paste reviews</button><button class="tab" id="upload-tab" role="tab" aria-selected="false" type="button">Upload CSV</button></div>
+          <div id="paste-view" class="input-view">
+            <label class="field-label" for="reviews-input">CUSTOMER REVIEWS <span>One review per line</span></label>
+            <textarea id="reviews-input" placeholder="The app is easy to use and looks great.&#10;Checkout is slow and keeps freezing.&#10;I would love to see a dark mode option." spellcheck="true"></textarea>
+            <div class="textarea-footer"><span id="review-count">3 reviews in example</span><button class="text-button" id="clear-button" type="button">Clear all</button></div>
+            <div class="button-row"><button class="button button-primary" id="analyze-button" type="button"><span>Analyze feedback</span><span aria-hidden="true">→</span></button><button class="button button-secondary" id="sample-button" type="button">Load sample</button></div>
           </div>
-        {% else %}
-          <p>No clear pain-point themes were detected. Try adding more detailed reviews.</p>
-        {% endif %}
-      </section>
+          <div id="upload-view" class="input-view hidden">
+            <label class="upload-zone" for="csv-file"><span class="upload-icon">↑</span><strong>Drop your CSV here or browse</strong><span>CSV only · up to 5 MB</span><input id="csv-file" type="file" accept=".csv,text/csv"></label>
+            <p class="upload-hint">Use a column named <code>review</code>, <code>feedback</code>, <code>comment</code>, or <code>text</code>.</p>
+            <div id="file-name" class="file-name">No file selected</div>
+            <button class="button button-primary full-width" id="upload-analyze-button" type="button">Analyze CSV <span>→</span></button>
+          </div>
+          <div id="error-message" class="error-message hidden" role="alert"></div>
+          <div class="privacy-note"><span>♧</span><span>Your feedback is processed for this analysis and is not saved to a database.</span></div>
+        </section>
 
-      <section class="panel">
-        <h2>3. Theme breakdown and product roadmap</h2>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Theme</th><th>Mentions</th><th>Suggested improvement</th><th>Success metric</th><th>Priority</th></tr></thead>
-            <tbody>
-            {% for item in analysis.rows %}
-              <tr>
-                <td><strong>{{ item.theme }}</strong></td>
-                <td>{{ item.count }}</td>
-                <td>{{ item.feature }}</td>
-                <td>{{ item.metric }}</td>
-                <td><span class="priority {{ item.priority|lower }}">{{ item.priority }}</span></td>
-              </tr>
-            {% endfor %}
-            </tbody>
-          </table>
-        </div>
+        <section class="panel insight-panel">
+          <div class="panel-heading"><div><div class="step-label">STEP 02</div><h2>Your insights</h2><p>Results update after you analyze feedback.</p></div><button class="icon-button" id="export-button" type="button" disabled title="Export analysis as CSV" aria-label="Export analysis as CSV">↓</button></div>
+          <div id="empty-state" class="empty-state"><div class="empty-illustration"><span class="empty-spark spark-a">✦</span><span class="empty-spark spark-b">✧</span><div class="empty-paper"><i></i><i></i><i></i><b>?</b></div></div><h3>Insights start here</h3><p>Add a few customer reviews and run an analysis to uncover what users are saying.</p><span class="empty-tip">TIP: Try 5–20 reviews for more useful patterns.</span></div>
+          <div id="results" class="results hidden" aria-live="polite">
+            <div class="metric-grid"><div class="metric-card"><span>Total reviews</span><strong id="total-metric">0</strong><small>Successfully analyzed</small></div><div class="metric-card metric-positive"><span>Positive</span><strong id="positive-metric">0%</strong><small id="positive-count">0 reviews</small></div><div class="metric-card metric-negative"><span>Negative</span><strong id="negative-metric">0%</strong><small id="negative-count">0 reviews</small></div></div>
+            <div class="sentiment-section"><div class="section-title-row"><h3>Sentiment distribution</h3><span id="neutral-count" class="subtle-label">0 neutral</span></div><div class="stacked-bar" id="sentiment-bar"><span class="bar-positive"></span><span class="bar-neutral"></span><span class="bar-negative"></span></div><div class="legend-row"><span><i class="legend-green"></i> Positive <b id="positive-legend">0%</b></span><span><i class="legend-gray"></i> Neutral <b id="neutral-legend">0%</b></span><span><i class="legend-red"></i> Negative <b id="negative-legend">0%</b></span></div></div>
+            <div class="insight-block"><div class="section-title-row"><h3>Recurring themes</h3><span class="subtle-label">Detected from text</span></div><div id="theme-list" class="theme-list"></div></div>
+            <div class="insight-block"><div class="section-title-row"><h3>Recommended next steps</h3><span class="sparkle-label">✦ INSIGHTS</span></div><div id="recommendation-list" class="recommendation-list"></div></div>
+            <div class="table-block"><div class="section-title-row"><h3>Review-by-review results</h3><span id="table-count" class="subtle-label">0 rows</span></div><div class="table-wrap"><table><thead><tr><th>Review</th><th>Sentiment</th><th>Score</th><th>Themes</th></tr></thead><tbody id="results-table"></tbody></table></div></div>
+            <p class="method-note">Method: VADER sentiment analysis with rule-based theme detection. Results can be imperfect and should be reviewed in context.</p>
+          </div>
+        </section>
       </section>
-
-      <section class="panel">
-        <h2>4. Review-by-review classification</h2>
-        <div class="review-list">
-          {% for review in analysis.reviews %}
-          <article class="review-item">
-            <p>{{ review.text }}</p>
-            <div class="chips">
-              {% for theme in review.themes %}<span class="chip">{{ theme }}</span>{% endfor %}
-              <span class="chip sentiment">{{ review.sentiment }}</span>
-            </div>
-          </article>
-          {% endfor %}
-        </div>
-      </section>
-      <p class="fine-print">Method note: a review can match multiple themes. Theme mentions may therefore add up to more than the total number of reviews. Sentiment is a simple keyword estimate, not a trained machine-learning model.</p>
-    </section>
-    {% endif %}
-    <footer><span>ReviewLens · Portfolio project</span><span>Built with Flask · Free demo</span></footer>
-  </main>
-  <script>
-    const textarea = document.getElementById('reviews');
-    const counter = document.getElementById('reviewCount');
-    const sampleBtn = document.getElementById('sampleBtn');
-    const sampleReviews = [
-      "My food arrived 40 minutes late and it was cold.",
-      "Payment failed but money was deducted from my account.",
-      "The app is easy to use and ordering was quick.",
-      "Customer support did not respond when my order was missing.",
-      "The delivery fee is too expensive and appeared at checkout.",
-      "I love the simple reorder option and the food was delicious.",
-      "The app crashed when I tried to pay.",
-      "My order was delivered late again. Tracking was not accurate.",
-      "The refund took too long after the payment problem.",
-      "Good service and fast delivery today."
-    ];
-    function updateCount() {
-      const lines = textarea.value.split('\\n').filter(line => line.trim().length > 0);
-      counter.textContent = `${lines.length} review${lines.length === 1 ? '' : 's'} detected`;
-    }
-    textarea.addEventListener('input', updateCount);
-    sampleBtn.addEventListener('click', () => {
-      textarea.value = sampleReviews.join('\\n');
-      updateCount();
-      textarea.focus();
-    });
-    updateCount();
-  </script>
+      <section class="bottom-note"><div class="bottom-icon">✳</div><div><strong>From feedback to better product decisions.</strong><p>Use repeated customer signals to guide what your team investigates next.</p></div><span class="bottom-decoration">SIGNALDESK / INSIGHTS</span></section>
+    </main>
+    <footer><span>SignalDesk <span class="brand-dot">.</span> Product Feedback Analyser</span><span>Built with Python · Flask · VADER NLP</span></footer>
+  </div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

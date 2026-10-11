@@ -1,128 +1,172 @@
-from flask import Flask, render_template, request
-from collections import Counter, defaultdict
+from __future__ import annotations
+
+import io
+import os
 import re
+from collections import Counter
+from typing import Any
+
+import pandas as pd
+from flask import Flask, jsonify, render_template, request
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB upload limit
+analyzer = SentimentIntensityAnalyzer()
 
-THEMES = {
-    "Delivery issues": {
-        "keywords": ["late", "delay", "delayed", "delivery", "delivered", "cold food", "missing item", "wrong order", "driver", "rider"],
-        "feature": "Improve delivery estimates and provide clearer live order tracking.",
-        "metric": "Reduce late deliveries and delivery-related complaints."
-    },
-    "Payment problems": {
-        "keywords": ["payment", "paid", "charged", "refund", "refunded", "transaction", "upi", "card", "money deducted", "failed payment"],
-        "feature": "Show clear payment status and provide a safe retry/refund flow.",
-        "metric": "Reduce payment failures and payment-related support contacts."
-    },
-    "App usability": {
-        "keywords": ["confusing", "difficult to use", "hard to find", "cannot find", "can't find", "navigation", "layout", "reorder", "slow app", "crash", "crashes", "bug"],
-        "feature": "Simplify navigation and make frequently used actions easier to find.",
-        "metric": "Increase task completion and successful repeat orders."
-    },
-    "Pricing and fees": {
-        "keywords": ["expensive", "price", "pricing", "cost", "fee", "fees", "charges", "discount", "offer", "overpriced"],
-        "feature": "Explain fees and discounts clearly before checkout.",
-        "metric": "Reduce checkout abandonment linked to unexpected costs."
-    },
-    "Customer support": {
-        "keywords": ["support", "customer care", "no response", "not responding", "help", "complaint", "agent", "contact"],
-        "feature": "Make order-specific help easier to access and show support status.",
-        "metric": "Reduce response time and repeat support requests."
-    },
-    "Food or product quality": {
-        "keywords": ["taste", "tasteless", "quality", "stale", "spoiled", "damaged", "packaging", "portion", "quantity", "wrong item", "bad food"],
-        "feature": "Improve quality reporting and make issue resolution easier.",
-        "metric": "Reduce quality-related complaints and repeat incidents."
-    },
-    "Positive experience": {
-        "keywords": ["great", "excellent", "amazing", "good service", "fast delivery", "easy to use", "love it", "helpful", "perfect", "delicious", "best app"],
-        "feature": "Preserve the parts of the experience customers praise.",
-        "metric": "Maintain or improve positive-review share."
-    }
+THEME_KEYWORDS = {
+    "Performance": ["slow", "fast", "lag", "loading", "speed", "crash", "freeze", "hang"],
+    "Usability": ["easy", "difficult", "confusing", "simple", "navigation", "interface", "design"],
+    "Pricing": ["price", "pricing", "expensive", "cheap", "cost", "subscription", "affordable"],
+    "Features": ["feature", "option", "function", "missing", "request", "add", "support"],
+    "Reliability": ["bug", "error", "broken", "fail", "issue", "problem", "work", "reliable"],
+    "Customer Support": ["support team", "customer service", "response", "help desk", "representative"],
 }
 
-NEGATIVE_HINTS = ["bad", "worst", "poor", "late", "delay", "failed", "crash", "expensive", "confusing",
-                  "refund", "problem", "issue", "terrible", "never", "not", "wrong", "cold", "stale", "broken"]
-POSITIVE_HINTS = ["great", "excellent", "amazing", "good", "love", "perfect", "delicious", "fast", "helpful", "best"]
 
-def analyse_reviews(raw_text):
-    reviews = [line.strip(" \t-•") for line in raw_text.splitlines() if line.strip(" \t-•")]
+def classify_sentiment(text: str) -> dict[str, Any]:
+    """Classify sentiment using VADER's rule/lexicon-based NLP sentiment model."""
+    scores = analyzer.polarity_scores(text)
+    compound = scores["compound"]
+    if compound >= 0.05:
+        label = "Positive"
+    elif compound <= -0.05:
+        label = "Negative"
+    else:
+        label = "Neutral"
+    return {"sentiment": label, "score": round(compound, 3), "positive_score": round(scores["pos"], 3),
+            "neutral_score": round(scores["neu"], 3), "negative_score": round(scores["neg"], 3)}
+
+
+def detect_themes(text: str) -> list[str]:
+    normalized = text.lower()
+    return [theme for theme, words in THEME_KEYWORDS.items()
+            if any(re.search(r"\b" + re.escape(word) + r"\b", normalized) for word in words)]
+
+
+def analyze_reviews(reviews: list[str]) -> dict[str, Any]:
+    cleaned = [str(review).strip() for review in reviews if review is not None and str(review).strip()]
+    if not cleaned:
+        raise ValueError("Enter at least one non-empty review to analyze.")
+    if len(cleaned) > 1000:
+        raise ValueError("Please analyze no more than 1,000 reviews at a time.")
+
     results = []
-    theme_counts = Counter()
-    theme_reviews = defaultdict(list)
+    theme_counts: Counter[str] = Counter()
+    for index, review in enumerate(cleaned, start=1):
+        sentiment = classify_sentiment(review)
+        themes = detect_themes(review)
+        theme_counts.update(themes)
+        results.append({"id": index, "review": review, **sentiment,
+                        "themes": themes, "theme_text": ", ".join(themes) if themes else "Other"})
 
-    for review in reviews:
-        lower = review.lower()
-        matched = []
-        for theme, info in THEMES.items():
-            if any(keyword in lower for keyword in info["keywords"]):
-                matched.append(theme)
+    sentiment_counts = Counter(row["sentiment"] for row in results)
+    negative_themes = Counter()
+    positive_themes = Counter()
+    for row in results:
+        if row["sentiment"] == "Negative":
+            negative_themes.update(row["themes"])
+        elif row["sentiment"] == "Positive":
+            positive_themes.update(row["themes"])
 
-        if not matched:
-            matched = ["Other / uncategorised"]
+    pain_points = [theme for theme, _ in negative_themes.most_common(3)]
+    strengths = [theme for theme, _ in positive_themes.most_common(3)]
+    recommendations = []
+    recommendation_map = {
+        "Performance": "Investigate slow screens and crashes; measure load time before and after fixes.",
+        "Usability": "Review navigation with users and simplify confusing workflows.",
+        "Pricing": "Review plan value and explain pricing clearly before checkout.",
+        "Features": "Group feature requests and prioritize them by frequency and customer impact.",
+        "Reliability": "Reproduce reported errors and add regression tests for fixes.",
+        "Customer Support": "Track first-response time and improve support follow-up.",
+    }
+    for theme in pain_points:
+        if theme in recommendation_map:
+            recommendations.append({"theme": theme, "action": recommendation_map[theme]})
+    if not recommendations:
+        recommendations.append({"theme": "General", "action": "Collect more specific feedback and monitor sentiment as new reviews arrive."})
 
-        negative = sum(1 for word in NEGATIVE_HINTS if word in lower)
-        positive = sum(1 for word in POSITIVE_HINTS if word in lower)
-        sentiment = "Negative" if negative > positive else ("Positive" if positive > negative else "Mixed / unclear")
-
-        results.append({"text": review, "themes": matched, "sentiment": sentiment})
-        for theme in matched:
-            theme_counts[theme] += 1
-            theme_reviews[theme].append(review)
-
-    rows = []
-    for theme, count in theme_counts.most_common():
-        info = THEMES.get(theme, {
-            "feature": "Review this theme manually and decide whether a product change is needed.",
-            "metric": "Define a measurable outcome after reviewing the underlying feedback."
-        })
-        if theme == "Other / uncategorised":
-            priority = "Review"
-        elif theme in ("Delivery issues", "Payment problems", "Customer support", "Food or product quality"):
-            priority = "High" if count >= 2 else "Medium"
-        else:
-            priority = "High" if count >= 4 and theme != "Positive experience" else "Medium"
-        rows.append({
-            "theme": theme,
-            "count": count,
-            "examples": theme_reviews[theme][:2],
-            "feature": info["feature"],
-            "metric": info["metric"],
-            "priority": priority
-        })
-
-    pain_points = [r for r in rows if r["theme"] != "Positive experience" and r["theme"] != "Other / uncategorised"][:3]
-    sentiment_counts = Counter(r["sentiment"] for r in results)
+    total = len(results)
     return {
-        "reviews": results,
-        "rows": rows,
+        "total": total,
+        "sentiment_counts": {label: sentiment_counts.get(label, 0) for label in ["Positive", "Neutral", "Negative"]},
+        "sentiment_percentages": {label: round(sentiment_counts.get(label, 0) * 100 / total, 1)
+                                  for label in ["Positive", "Neutral", "Negative"]},
+        "theme_counts": [{"theme": theme, "count": count} for theme, count in theme_counts.most_common()],
         "pain_points": pain_points,
-        "total": len(reviews),
-        "sentiments": sentiment_counts
+        "strengths": strengths,
+        "recommendations": recommendations,
+        "results": results,
+        "method": "VADER sentiment analysis with rule-based theme detection",
     }
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    analysis = None
-    raw_text = ""
-    error = None
-    if request.method == "POST":
-        raw_text = request.form.get("reviews", "").strip()
-        if not raw_text:
-            error = "Paste at least one review, with each review on a separate line."
-        else:
-            analysis = analyse_reviews(raw_text)
-            if analysis["total"] == 0:
-                error = "No reviews were detected. Put each review on a separate line."
-                analysis = None
-    return render_template("index.html", analysis=analysis, raw_text=raw_text, error=error)
 
-@app.route("/health")
+def read_reviews_from_csv(file_storage) -> list[str]:
+    filename = (file_storage.filename or "").lower()
+    if not filename.endswith(".csv"):
+        raise ValueError("Please upload a .csv file.")
+    raw = file_storage.read()
+    if len(raw) > 5 * 1024 * 1024:
+        raise ValueError("The CSV file must be 5 MB or smaller.")
+    try:
+        dataframe = pd.read_csv(io.BytesIO(raw))
+    except Exception as exc:
+        raise ValueError("Could not read this CSV. Please check that it is a valid comma-separated file.") from exc
+    if dataframe.empty or len(dataframe.columns) == 0:
+        raise ValueError("The CSV file has no review rows.")
+    normalized = {str(column).strip().lower(): column for column in dataframe.columns}
+    candidates = ["review", "reviews", "feedback", "comment", "comments", "text", "customer_review"]
+    column = next((normalized[name] for name in candidates if name in normalized), None)
+    if column is None:
+        if len(dataframe.columns) == 1:
+            column = dataframe.columns[0]
+        else:
+            raise ValueError("Could not identify a review column. Use a column named review, feedback, comment, or text.")
+    reviews = dataframe[column].dropna().astype(str).tolist()
+    if not any(review.strip() for review in reviews):
+        raise ValueError("No non-empty reviews were found in the CSV file.")
+    return reviews
+
+
+@app.get("/")
+def home():
+    return render_template("index.html")
+
+
+@app.get("/health")
 def health():
-    return {"status": "ok"}
+    return jsonify({"status": "ok", "service": "product-feedback-analyser"})
+
+
+@app.post("/api/analyze")
+def analyze_api():
+    data = request.get_json(silent=True) or {}
+    reviews = data.get("reviews")
+    if not isinstance(reviews, list):
+        text = data.get("text", "")
+        reviews = str(text).splitlines()
+    try:
+        return jsonify(analyze_reviews(reviews))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.post("/api/analyze-csv")
+def analyze_csv_api():
+    uploaded = request.files.get("file")
+    if not uploaded or not uploaded.filename:
+        return jsonify({"error": "Choose a CSV file first."}), 400
+    try:
+        reviews = read_reviews_from_csv(uploaded)
+        return jsonify(analyze_reviews(reviews))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.errorhandler(413)
+def file_too_large(_error):
+    return jsonify({"error": "Upload is too large. The maximum file size is 5 MB."}), 413
+
 
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=False)
